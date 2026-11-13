@@ -171,11 +171,13 @@ module.exports = async function handler(req, res) {
     const arrayBuffer = await imageFetchResponse.arrayBuffer();
     const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
-    // 2. Gemini API 호출 (계정에서 지원하는 2.5 flash 최우선)
+    // 2. Gemini API 호출 (최신 사용 가능 모델 순차 시도)
     const priorityModels = [
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite",
+      "gemini-3-flash-preview",
       "gemini-2.5-flash",
       "gemini-flash-latest",
-      "gemini-2.5-flash-lite",
     ];
 
     let analysisResult = null;
