@@ -2,31 +2,6 @@
 // Vercel Serverless Function: Google Gemini API를 이용한 이미지 분위기/스타일 분석
 
 /**
- * API 키로 사용 가능한 Gemini 모델을 자동 검색합니다.
- * @param {string} apiKey
- * @returns {Promise<string[]>}
- */
-async function getAvailableModels(apiKey) {
-  try {
-    const listRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-    );
-    if (!listRes.ok) {
-      console.warn("models list 조회 실패:", listRes.status);
-      return [];
-    }
-    const data = await listRes.json();
-    const models = data.models || [];
-    return models
-      .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
-      .map((m) => m.name.replace(/^models\//, ""));
-  } catch (err) {
-    console.warn("models list fetch 오류:", err.message);
-    return [];
-  }
-}
-
-/**
  * Gemini 모델을 호출하여 이미지를 분석합니다.
  * @param {string} modelName
  * @param {string} apiKey
@@ -153,16 +128,6 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // 디버그 요청 지원
-    if (body?.debug) {
-      const available = await getAvailableModels(apiKey);
-      return res.status(200).json({
-        debug: true,
-        availableModels: available,
-        keyPrefix: apiKey.slice(0, 6) + "...",
-      });
-    }
-
     const { imageUrl } = body || {};
 
     if (!imageUrl || typeof imageUrl !== "string") {
@@ -192,50 +157,19 @@ module.exports = async function handler(req, res) {
     const arrayBuffer = await imageFetchResponse.arrayBuffer();
     const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
-    // 2. 사용 가능한 모델 탐색 및 순차 시도
-    const availableModels = await getAvailableModels(apiKey);
-    console.log("계정에서 지원하는 Gemini 모델 목록:", availableModels);
-
-    // 우선 시도할 모델 후보 목록
-    const preferredOrder = [
+    // 2. 모델 우선순위 순차 호출 (gemini-2.5-flash -> gemini-flash-latest -> gemini-2.0-flash)
+    const priorityModels = [
+      "gemini-2.5-flash",
+      "gemini-flash-latest",
+      "gemini-2.5-flash-lite",
       "gemini-2.0-flash",
-      "gemini-2.0-flash-exp",
-      "gemini-1.5-flash",
-      "gemini-1.5-flash-latest",
-      "gemini-1.5-flash-001",
-      "gemini-1.5-flash-002",
-      "gemini-1.5-pro",
-      "gemini-1.5-pro-latest",
     ];
-
-    // availableModels 중에서 preferredOrder 순서대로 매칭하거나, 없으면 availableModels 전체 사용
-    const targetModels = [];
-    for (const pref of preferredOrder) {
-      if (availableModels.includes(pref)) {
-        targetModels.push(pref);
-      }
-    }
-    for (const avail of availableModels) {
-      if (!targetModels.includes(avail)) {
-        targetModels.push(avail);
-      }
-    }
-
-    // 만약 listModels가 빈 배열이었다면 기본 fallback 모델들 지정
-    if (targetModels.length === 0) {
-      targetModels.push(
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest"
-      );
-    }
 
     let analysisResult = null;
     let lastError = null;
 
-    for (const model of targetModels) {
+    for (const model of priorityModels) {
       try {
-        console.log(`Gemini 모델 시도 중: ${model}`);
         analysisResult = await callGeminiApi(
           model,
           apiKey,
@@ -243,17 +177,15 @@ module.exports = async function handler(req, res) {
           base64Data
         );
         if (analysisResult) {
-          console.log(`모델 ${model} 호출 성공`);
           break;
         }
       } catch (err) {
-        console.warn(`모델 ${model} 실패:`, err.message);
         lastError = err;
       }
     }
 
     if (!analysisResult) {
-      throw lastError || new Error("Gemini API 호출에 모두 실패했습니다.");
+      throw lastError || new Error("Gemini API 호출에 실패했습니다.");
     }
 
     // 3. 응답 규격 점검 및 기본값 보정
