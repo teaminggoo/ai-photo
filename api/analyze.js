@@ -1,6 +1,21 @@
 // api/analyze.js
 // Vercel Serverless Function: Google Gemini API를 이용한 이미지 분위기/스타일 분석
 
+module.exports.config = {
+  maxDuration: 60,
+};
+
+/**
+ * Cloudinary 이미지 URL을 다운로드 및 AI 분석에 최적화된 저용량/고효율 URL로 변환합니다.
+ * @param {string} url
+ */
+function optimizeImageUrl(url) {
+  if (typeof url === "string" && url.includes("/image/upload/")) {
+    return url.replace("/image/upload/", "/image/upload/w_800,c_limit,q_auto:eco/");
+  }
+  return url;
+}
+
 /**
  * Gemini 모델을 호출하여 이미지를 분석합니다.
  * @param {string} modelName
@@ -84,7 +99,7 @@ async function callGeminiApi(modelName, apiKey, mimeType, base64Data) {
     throw new Error("Gemini로부터 분석 결과를 전달받지 못했습니다.");
   }
 
-  // JSON 파싱 (코드 블록 방어)
+  // JSON 파싱 (마크다운 코드 블록 방어)
   const cleaned = rawText
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
@@ -136,14 +151,13 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // 1. Cloudinary 이미지 다운로드 후 Base64 변환
-    let imageFetchResponse;
-    try {
+    // 1. Cloudinary 이미지 다운로드 (가벼운 크기로 최적화된 URL 우선 사용)
+    const targetUrl = optimizeImageUrl(imageUrl);
+    let imageFetchResponse = await fetch(targetUrl).catch(() => null);
+
+    // 최적화 URL 실패 시 원본 URL 재시도
+    if (!imageFetchResponse || !imageFetchResponse.ok) {
       imageFetchResponse = await fetch(imageUrl);
-    } catch (fetchErr) {
-      return res.status(400).json({
-        error: `이미지 URL에 접근할 수 없습니다: ${fetchErr.message}`,
-      });
     }
 
     if (!imageFetchResponse.ok) {
@@ -157,12 +171,11 @@ module.exports = async function handler(req, res) {
     const arrayBuffer = await imageFetchResponse.arrayBuffer();
     const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
-    // 2. 모델 우선순위 순차 호출 (gemini-2.5-flash -> gemini-flash-latest -> gemini-2.0-flash)
+    // 2. Gemini API 호출 (계정에서 지원하는 2.5 flash 최우선)
     const priorityModels = [
       "gemini-2.5-flash",
       "gemini-flash-latest",
       "gemini-2.5-flash-lite",
-      "gemini-2.0-flash",
     ];
 
     let analysisResult = null;

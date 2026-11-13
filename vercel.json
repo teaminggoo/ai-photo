@@ -1,14 +1,7 @@
 {
-  "version": 2,
   "functions": {
-    "api/analyze.js": {
+    "api/**/*.js": {
       "maxDuration": 60
     }
-  },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    }
-  ]
+  }
 }
