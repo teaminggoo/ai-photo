@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 포토 분석 | AI Photo Mood & Style</title>
+  <link
+    rel="stylesheet"
+    as="style"
+    crossorigin
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css"
+  />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="header-badge">AI Photo Mood Analyzer</div>
+      <h1>AI 이미지 분위기 & 스타일 분석</h1>
+      <p class="subtitle">사진을 업로드하면 Google Gemini가 색상, 구도, 의상, 표정을 분석하여 특별한 무드를 찾아드립니다.</p>
+    </header>
+
+    <!-- 단계 표시 바 -->
+    <div class="step-indicator" aria-label="진행 단계">
+      <div id="stepBadge1" class="step-item active">
+        <span class="step-number">1</span>
+        <span class="step-label">이미지 업로드</span>
+      </div>
+      <div class="step-divider"></div>
+      <div id="stepBadge2" class="step-item">
+        <span class="step-number">2</span>
+        <span class="step-label">AI 무드 분석</span>
+      </div>
+    </div>
+
+    <!-- 1단계: 이미지 선택 및 Cloudinary 업로드 -->
+    <section id="uploadSection" class="card" aria-label="이미지 업로드 단계">
+      <h2 class="section-title">1. 분석할 이미지 선택</h2>
+
+      <label for="imageInput" id="dropZone" class="drop-zone">
+        <input
+          type="file"
+          id="imageInput"
+          accept="image/*"
+          class="sr-only"
+        />
+        <div id="dropZoneDefault" class="drop-zone-content">
+          <div class="upload-icon" aria-hidden="true">📷</div>
+          <p class="drop-title">클릭하거나 이미지를 이곳에 드래그하세요</p>
+          <p class="drop-desc">JPG, PNG, WEBP 등 이미지 파일 지원</p>
+        </div>
+
+        <!-- 로컬/업로드 미리보기 -->
+        <div id="previewContainer" class="preview-container hidden">
+          <img id="previewImage" src="" alt="선택한 이미지 미리보기" />
+        </div>
+      </label>
+
+      <!-- 업로드 진행 중 상태 메시지 -->
+      <div id="uploadingState" class="status-box uploading hidden" role="status" aria-live="polite">
+        <div class="spinner"></div>
+        <p id="uploadingMessage">이미지를 업로드하고 있습니다.</p>
+      </div>
+
+      <!-- 에러 메시지 -->
+      <p id="uploadError" class="error-message hidden" role="alert"></p>
+
+      <!-- 업로드 완료 안내 및 URL 확인 -->
+      <div id="uploadSuccessBox" class="success-box hidden">
+        <div class="success-header">
+          <span class="success-badge">업로드 완료</span>
+          <button type="button" id="changeImageBtn" class="btn-text">다른 이미지 선택</button>
+        </div>
+        <div class="url-row">
+          <input
+            type="text"
+            id="uploadedUrlInput"
+            readonly
+            aria-label="업로드된 Cloudinary 이미지 URL"
+          />
+          <button type="button" id="copyUrlBtn" class="btn-secondary btn-sm">URL 복사</button>
+        </div>
+        <div class="next-step-actions">
+          <button type="button" id="nextStepBtn" class="btn-primary">
+            다음 분석 단계로 이동 →
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2단계: AI 분석 단계 영역 -->
+    <section id="analysisSection" class="card hidden" aria-label="이미지 분석 단계">
+      <div class="section-header-row">
+        <h2 class="section-title">2. AI 이미지 분위기 분석</h2>
+        <button type="button" id="backToUploadBtn" class="btn-secondary btn-sm">
+          ← 이미지 다시 선택
+        </button>
+      </div>
+
+      <!-- 분석 대상 이미지 미리보기 카드 -->
+      <div class="analysis-preview-card">
+        <img id="analysisImage" src="" alt="분석 대상 이미지" />
+        <div class="analysis-meta">
+          <span class="meta-label">업로드된 이미지 URL</span>
+          <a
+            id="analysisImageUrlLink"
+            href="#"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="meta-url"
+          ></a>
+        </div>
+      </div>
+
+      <!-- 분석 대기/시작 박스 -->
+      <div id="analysisReadyBox" class="analysis-box">
+        <p class="analysis-guide">
+          이미지가 클라우드에 안전하게 준비되었습니다.<br />
+          Google Gemini가 사진 속 색상, 배경, 구도, 의상, 표정을 바탕으로 분위기를 정밀 분석합니다.
+        </p>
+        <button type="button" id="startAnalysisBtn" class="btn-primary btn-large">
+          ✨ AI 사진 분석 시작하기
+        </button>
+      </div>
+
+      <!-- 분석 진행 중 상태 메시지 ('AI가 사진을 분석하고 있습니다.') -->
+      <div id="analyzingState" class="status-box analyzing hidden" role="status" aria-live="polite">
+        <div class="spinner"></div>
+        <div>
+          <p id="analyzingMessage" class="analyzing-text">AI가 사진을 분석하고 있습니다.</p>
+          <p class="analyzing-subtext">사진의 색감, 표정, 배경 및 전반적인 무드를 읽어내는 중입니다...</p>
+        </div>
+      </div>
+
+      <!-- 분석 에러 메시지 -->
+      <div id="analysisError" class="error-message hidden" role="alert"></div>
+
+      <!-- 분석 결과 화면 -->
+      <div id="analysisResultBox" class="result-card hidden">
+        <div class="result-header">
+          <div class="result-badge">Analysis Completed</div>
+          <h3 class="result-title">사진 분위기 & 스타일 분석 결과</h3>
+        </div>
+
+        <!-- 1. AI 한줄평 -->
+        <div class="review-box">
+          <div class="quote-icon" aria-hidden="true">“</div>
+          <p id="oneLineReviewText" class="review-text"></p>
+          <div class="quote-icon right" aria-hidden="true">”</div>
+        </div>
+
+        <!-- 2. 분위기 키워드 3개 & 퍼센트 -->
+        <div class="keywords-section">
+          <h4 class="sub-heading">🎯 분위기 키워드 & 무드 비율</h4>
+          <div id="keywordsList" class="keywords-list">
+            <!-- 동적으로 생성되는 키워드 바 -->
+          </div>
+        </div>
+
+        <!-- 3. 추천 해시태그 4개 -->
+        <div class="hashtags-section">
+          <h4 class="sub-heading">🏷️ 추천 해시태그</h4>
+          <div id="hashtagsList" class="hashtags-list">
+            <!-- 동적으로 생성되는 해시태그 버튼 -->
+          </div>
+          <p class="tag-hint">해시태그를 클릭하면 클립보드에 복사됩니다.</p>
+        </div>
+
+        <!-- 하단 액션 버튼 -->
+        <div class="result-actions">
+          <button type="button" id="reAnalyzeBtn" class="btn-secondary">
+            🔄 다시 분석하기
+          </button>
+          <button type="button" id="uploadAnotherBtn" class="btn-primary">
+            📷 새 사진 업로드하기
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
