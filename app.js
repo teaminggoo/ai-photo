@@ -92,12 +92,21 @@ async function analyzeImageWithGemini(imageUrl) {
     body: JSON.stringify({ imageUrl }),
   });
 
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
+  const rawText = await response.text();
+  let result = null;
+  try {
+    result = rawText ? JSON.parse(rawText) : null;
+  } catch (parseErr) {
     throw new Error(
-      result.error || "AI 이미지 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+      `서버 응답 오류 (HTTP ${response.status}): ${rawText || "응답이 비어있습니다."}`
     );
+  }
+
+  if (!response.ok || !result || !result.success) {
+    const errorMsg =
+      result?.error ||
+      `AI 이미지 분석에 실패했습니다. (HTTP 상태 코드: ${response.status})`;
+    throw new Error(errorMsg);
   }
 
   return result.data;
